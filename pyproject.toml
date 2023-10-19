@@ -20,6 +20,7 @@ classifiers = [
 ]
 dependencies = [
     'loguru',
+    'cmder',
 ]
 [tool.flit.module]
 name = 'MolIO'
