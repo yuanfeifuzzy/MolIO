@@ -32,10 +32,17 @@ class SDF:
                     break
             mol = ''.join(mol)
 
-            for line in lines[i + 2:]:
+            for j, line in enumerate(lines[i + 2:]):
                 if line.startswith('ENERGY') and 'LOWER_BOUND' in line:
                     try:
-                        score = line.split('=')[1].lstrip().split()[0]
+                        score = float(line.split('=')[1].lstrip().split()[0])
+                    except Exception as e:
+                        logger.error(f'Failed to get docking score from {line.strip()} due to {e}')
+                        score = None
+                elif line.startswith('>  <score>'):
+                    line = lines[i + 2:][j + 1]
+                    try:
+                        score = float(line.strip())
                     except Exception as e:
                         logger.error(f'Failed to get docking score from {line.strip()} due to {e}')
                         score = None
@@ -82,41 +89,51 @@ class DLG:
                 if line.strip().split()[0] in ('ATOM', 'ROOT', 'ENDROOT', 'BRANCH', 'ENDBRANCH'):
                     atom.append(line)
                 elif 'Estimated Free Energy of Binding' in line:
-                    score = line.split('=')[1].lstrip().split()[0]
+                    try:
+                        score = float(line.split('=')[1].lstrip().split()[0])
+                    except Exception as e:
+                        logger.error(f'Failed to get docking score due to {e}:\n{line}')
                 elif 'REMARK Name =' in line:
                     title = line.strip().split(' = ')[1]
-
         return score, title, ''.join(atom)
 
     def pdbqt(self, output=None, title=''):
         title = title or self.title
-        s = [f'REMARK  Name = {title}' if title else '', '' if self.score is None else f'score {self.score}', self.atom]
-        s = '\n'.join([x for x in s if x])
-        if output:
-            with open(output, 'w') as o:
-                o.write(s)
-                return output
+        if self.atom:
+            s = [f'REMARK  Name = {title}' if title else '', '' if self.score is None else f'score {self.score}', self.atom]
+            s = '\n'.join([x for x in s if x])
+            if output:
+                with open(output, 'w') as o:
+                    o.write(s)
+                    return output
+            else:
+                return s
         else:
-            return s
-
-    def sdf(self, output=None, title=''):
-        pdbqt, _sdf = tempfile.mktemp(suffix='.pdbqt'), output or tempfile.mktemp(suffix='.sdf')
-        self.pdbqt(output=pdbqt, title=title)
-        p = cmder.run(f'obabel {pdbqt} -b -p -h -n -o sdf -O {_sdf}', exit_on_error=False)
-        if p.returncode:
-            os.unlink(pdbqt)
-            os.unlink(_sdf)
-            logger.error('Failed to write molecule to SDF file')
             return ''
 
-        os.unlink(pdbqt)
-        if output:
-            return _sdf
-        else:
-            with open(_sdf) as f:
-                s = f.read()
+    def sdf(self, output=None, title=''):
+        _, pdbqt = tempfile.mkstemp(suffix='.pdbqt')
+        _, _sdf = tempfile.mkstemp(suffix='.sdf')
+        try:
+            self.pdbqt(output=pdbqt, title=title)
+            p = cmder.run(f'obabel {pdbqt} -o sdf -O {_sdf}', exit_on_error=False, fmt_cmd=False, log_cmd=False)
+            if p.returncode:
+                logger.error('Failed to write molecule to SDF file')
+                return ''
+            else:
+                with open(_sdf) as f:
+                    lines = (line for line in f
+                                if not line.startswith('>  <REMARK>') and not line.startswith('  Name ='))
+                    lines = ('\n' if 'OpenBabel' in line else line for line in lines)
+                    if output:
+                        with open(output, 'w') as o:
+                            o.writelines(line for line in lines)
+                        return output
+                    else:
+                        return ''.join(lines)
+        finally:
+            os.unlink(pdbqt)
             os.unlink(_sdf)
-            return s
 
     def __str__(self):
         return self.s
@@ -234,14 +251,14 @@ def clean_sdf(sdf, output=None):
                 return s
 
 
-def dlg2sdf(dlg, sdf=None):
-    s = ''.join(f'{item.sdf()}' for item in parse(dlg))
+def dlg2sdf(dlg, sdf=None, title=''):
+    s = ''.join(f'{item.sdf(title=title)}' for item in parse_dlg(dlg))
     if sdf is None:
         return s
     else:
         sdf = sdf or str(Path(dlg).with_suffix('.sdf'))
         with open(sdf, 'w') as o:
-            o.writelines(f'{item.sdf()}' for item in parse(dlg))
+            o.write(s)
         return sdf
 
 
