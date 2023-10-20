@@ -154,6 +154,15 @@ def parse_dlg(dlg):
         yield DLG(''.join(lines))
 
 
+def parse(path):
+    if path.endswith('.sdf.gz') or path.endswith('.sdf'):
+        return parse_sdf(path)
+    elif path.endswith('.dlg.gz') or path.endswith('.dlg'):
+        return parse_dlg(path)
+    else:
+        raise TypeError(f'Unsupported file {path}')
+
+
 def write(records, output=''):
     records = (record.sdf() for record in records)
     s = ''.join(record for record in records if record)
@@ -206,7 +215,7 @@ def split_sdf(sdf, prefix, suffix='.sdf', files=0, records=0):
 
 
 def clean_sdf(sdf, output=None):
-    items = [sdf] if isinstance(sdf, SDF) else parse_sdf(sdf)
+    items = [sdf] if isinstance(sdf, SDF) else parse(sdf)
     s = ''.join(s.sdf() for s in items)
     if output is None:
         return s
@@ -226,27 +235,15 @@ def clean_sdf(sdf, output=None):
 
 
 def dlg2sdf(dlg, sdf=None):
-    s = ''.join(f'{item.sdf()}' for item in parse_dlg(dlg))
-    pdbqt = tempfile.mktemp(suffix='.pdbqt')
-    with open(pdbqt, 'w') as o:
-        o.write(s)
-
+    s = ''.join(f'{item.sdf()}' for item in parse(dlg))
     if sdf is None:
-        _sdf = tempfile.mktemp(suffix='.sdf')
+        return s
     else:
-        _sdf = sdf or str(Path(dlg).with_suffix('.sdf'))
+        sdf = sdf or str(Path(dlg).with_suffix('.sdf'))
+        with open(sdf, 'w') as o:
+            o.writelines(f'{item.sdf()}' for item in parse(dlg))
+        return sdf
 
-    p = cmder.run(f'obabel {pdbqt} -b -p -h -n -o sdf -O {_sdf}', exit_on_error=False)
-    if p.returncode:
-        os.unlink(pdbqt)
-        os.unlink(_sdf)
-        logger.error('Failed to write molecule to SDF file')
-        return ''
-    else:
-        if sdf is None:
-            with open(_sdf) as f:
-                s = f.read()
-            os.unlink(_sdf)
-            return s
-        else:
-            return _sdf
+
+if __name__ == '__main__':
+    pass
