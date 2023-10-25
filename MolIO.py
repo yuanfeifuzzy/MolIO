@@ -7,6 +7,8 @@ A simple module for convenient molecule I/O
 
 import os
 import sys
+import gzip
+from pathlib import Path
 
 import cmder
 from loguru import logger
@@ -39,7 +41,7 @@ class SDF:
                     except Exception as e:
                         logger.error(f'Failed to get docking score from {line.strip()} due to {e}')
                         score = None
-                elif line.startswith('>  <score>'):
+                elif line.startswith('>') and '<score>' in line:
                     line = lines[i + 2:][j + 1]
                     try:
                         score = float(line.strip())
@@ -55,10 +57,10 @@ class SDF:
         if self.mol:
             s = f'{title or self.title}\n{self.mol}'
             if score:
-                s = f'{s}\n{score}'
+                s = f'{s}\n{score}\n'
             s = f'{s}\n$$$$\n'
         else:
-            s = ''
+            s = '\n'
 
         if output:
             if s:
@@ -204,12 +206,12 @@ def split_sdf(sdf, prefix, suffix='.sdf', files=0, records=0):
             items.append(item)
             if i == end:
                 end += num
-                name = write(items, output=f'{prefix}.{idx}.{suffix}')
+                name = write(items, output=f'{prefix}{idx}{suffix}')
                 names.append(name)
                 idx += 1
                 items = []
         if items[:-1]:
-            name = write(items[:-1], output=f'{prefix}.{idx}.{suffix}')
+            name = write(items[:-1], output=f'{prefix}{idx}{suffix}')
             names.append(name)
     elif records:
         idx, n, items = 0, records - 1, []
@@ -218,17 +220,47 @@ def split_sdf(sdf, prefix, suffix='.sdf', files=0, records=0):
             idx, remains = divmod(i, records)
 
             if remains == n:
-                name = write(items, output=f'{prefix}.{idx + 1}.{suffix}')
+                name = write(items, output=f'{prefix}{idx + 1}{suffix}')
                 names.append(name)
                 items = []
         if items[:-1]:
-            name = write(items[:-1], output=f'{prefix}.{idx + 1}.{suffix}')
+            name = write(items[:-1], output=f'{prefix}{idx + 1}{suffix}')
             names.append(name)
     else:
         idx = 1
-        name = write(parse_sdf(sdf), output=f'{prefix}.{idx}.{suffix}')
+        name = write(parse_sdf(sdf), output=f'{prefix}{idx}{suffix}')
         names.append(name)
     return names
+
+
+def merge_sdf(sdfs, output):
+    items = []
+    for sdf in sdfs:
+        logger.debug(f'Parsing {sdf} ...')
+        for s in parse_sdf(sdf):
+            if s.score is not None and s.score < 0:
+                items.append(s)
+    
+    n = len(items)
+    logger.debug(f'Sorting {n:,} docking poses on docking score ...')
+    items = sorted(items, key=lambda x: x.score)
+    logger.debug(f'Sorting {n:,} docking poses on docking score complete.')
+
+    write(items, output)
+    logger.debug(f'Successfully saved {n:,} docking poses to {output}')
+    return output
+
+
+def batch_sdf(sdf, n, prefix):
+    batches = [f'{prefix}{i+1}.sdf' for i in range(n)]
+    batches = [batch if Path(batch).exists() else '' for batch in batches]
+    if all(batches):
+        logger.debug('Ligand batches already exist, skip re-generate batches')
+    else:
+        logger.debug(f'Splitting ligands into {n:,} batches ...')
+        batches = split_sdf(sdf, prefix, files=n)
+        logger.debug(f'Successfully split ligands into {len(batches):,} batches')
+    return batches
 
 
 def clean_sdf(sdf, output=None):
