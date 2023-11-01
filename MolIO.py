@@ -8,6 +8,7 @@ A simple module for convenient molecule I/O
 import os
 import sys
 import gzip
+import random
 from pathlib import Path
 
 import cmder
@@ -144,7 +145,7 @@ class DLG:
 
 def parse_sdf(sdf):
     path = str(sdf)
-    opener = gzip.open if path.endswith('.gz') else open
+    opener = gzip.open if path.endswith('.sdf.gz') or path.endswith('.sdfgz') else open
     with opener(path, 'rt') as f:
         lines = []
         for i, line in enumerate(f):
@@ -194,10 +195,14 @@ def write(records, output=''):
         return s
 
 
+def count_sdf(sdf):
+    return sum(1 for m in parse_sdf(sdf) if m.mol)
+
+
 def split_sdf(sdf, prefix, suffix='.sdf', files=0, records=0):
     names = []
     if files:
-        n = sum(1 for _ in parse_sdf(sdf))
+        n = count_sdf(sdf)
         num, remains = divmod(n, files)
         if remains:
             num += 1
@@ -232,6 +237,60 @@ def split_sdf(sdf, prefix, suffix='.sdf', files=0, records=0):
         name = write(parse_sdf(sdf), output=f'{prefix}{idx}{suffix}')
         names.append(name)
     return names
+
+
+def sample_sdf(sdf, output, n=0, p=0.0, seed=None):
+    logger.debug(f'Counting number of compounds in {sdf}')
+    total = count_sdf(sdf)
+    if n:
+        logger.debug(f'Try to sample {n:,} compounds out of {total:,} compounds')
+    elif p:
+        n = int(total * p / 100)
+        logger.debug(f'Try to sample {n:,} ({p * 100}%) compounds out of {total:,} compounds')
+    else:
+        raise ValueError('Neither number of compounds (n) nor percentage of compounds (p) was specified, aborted!')
+
+    if n <= total:
+        logger.debug(f'Sampling {n:,} compounds from {sdf}')
+    else:
+        raise ValueError(f'No enough compounds ({total} < {n}) found in {sdf} to sample')
+
+    logger.debug(f'Selecting random compounds')
+    random.seed(seed)
+    indices, ss = set(random.sample(range(total), n)), []
+    for i, s in enumerate(parse_sdf(sdf)):
+        if i in indices:
+            ss.append(s)
+
+    logger.debug(f'Saving {len(ss):,} compounds into {output}')
+    opener = gzip.open if str(output).endswith('.sdf.gz') or str(output).endswith('.sdfgz') else open
+    with opener(output, 'wt') as o:
+        o.writelines(s.sdf() for s in ss if s.mol)
+    logger.debug(f'Successfully saved {len(ss):,} compounds into {output}')
+
+    # random.seed(seed)
+    # indices = sorted(random.sample(range(total), n))
+    # step = 1000
+    # chunks = [indices[step * i: step * (i + 1)] for i in range(int(n / step) + 1)]
+    #
+    # ss, idx = [], 0
+    # idx = 0
+    # chunk, upper = chunks[idx], chunks[idx][-1]
+    # for i, s in enumerate(parse_sdf(sdf)):
+    #     if i < upper:
+    #         if i in chunk:
+    #             ss.append(s)
+    #     elif i == upper:
+    #         ss.append(s)
+    #         idx += 1
+    #         try:
+    #             chunk, upper = chunks[idx], chunks[idx][-1]
+    #         except IndexError:
+    #             break
+    #
+    # opener = gzip.open if str(output).endswith('.sdf.gz') or str(output).endswith('.sdfgz') else open
+    # with opener(output, 'wt') as o:
+    #     o.writelines(s.sdf() for s in ss if s.mol)
 
 
 def merge_sdf(sdfs, output):
@@ -296,4 +355,4 @@ def dlg2sdf(dlg, sdf=None, title=''):
 
 
 if __name__ == '__main__':
-    pass
+    sample_sdf('Enamine_00_part00.sdf_1.sdfgz', 'part00.1000.sdf', n=3000)
