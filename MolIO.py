@@ -102,7 +102,8 @@ class DLG:
     def pdbqt(self, output=None, title=''):
         title = title or self.title
         if self.atom:
-            s = [f'REMARK  Name = {title}' if title else '', '' if self.score is None else f'score {self.score}', self.atom]
+            s = [f'REMARK  Name = {title}' if title else '', '' if self.score is None else f'score {self.score}',
+                 self.atom]
             s = '\n'.join([x for x in s if x])
             if output:
                 with open(output, 'w') as o:
@@ -125,7 +126,7 @@ class DLG:
             else:
                 with open(_sdf) as f:
                     lines = (line for line in f
-                                if not line.startswith('>  <REMARK>') and not line.startswith('  Name ='))
+                             if not line.startswith('>  <REMARK>') and not line.startswith('  Name ='))
                     lines = ('\n' if 'OpenBabel' in line else line for line in lines)
                     if output:
                         with open(output, 'w') as o:
@@ -240,7 +241,7 @@ def merge_sdf(sdfs, output):
         for s in parse_sdf(sdf):
             if s.score is not None and s.score < 0:
                 items.append(s)
-    
+
     n = len(items)
     logger.debug(f'Sorting {n:,} docking poses on docking score ...')
     items = sorted(items, key=lambda x: x.score)
@@ -252,7 +253,7 @@ def merge_sdf(sdfs, output):
 
 
 def batch_sdf(sdf, n, prefix):
-    batches = [f'{prefix}{i+1}.sdf' for i in range(n)]
+    batches = [f'{prefix}{i + 1}.sdf' for i in range(n)]
     batches = [batch if Path(batch).exists() else '' for batch in batches]
     if all(batches):
         logger.debug('Ligand batches already exist, skip re-generate batches')
