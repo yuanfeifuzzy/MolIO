@@ -246,7 +246,7 @@ def sample_sdf(sdf, output, n=0, p=0.0, seed=None):
         logger.debug(f'Try to sample {n:,} compounds out of {total:,} compounds')
     elif p:
         n = int(total * p / 100)
-        logger.debug(f'Try to sample {n:,} ({p * 100}%) compounds out of {total:,} compounds')
+        logger.debug(f'Try to sample {n:,} ({p}%) compounds out of {total:,} compounds')
     else:
         raise ValueError('Neither number of compounds (n) nor percentage of compounds (p) was specified, aborted!')
 
