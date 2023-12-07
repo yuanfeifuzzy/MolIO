@@ -9,6 +9,7 @@ import os
 import sys
 import gzip
 import random
+import tempfile
 from pathlib import Path
 
 import cmder
@@ -355,4 +356,4 @@ def dlg2sdf(dlg, sdf=None, title=''):
 
 
 if __name__ == '__main__':
-    sample_sdf('Enamine_00_part00.sdf_1.sdfgz', 'part00.1000.sdf', n=3000)
+    pass
