@@ -19,8 +19,8 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    'loguru',
     'cmder',
+    'vstool@git+https://github.com/yuanfeifuzzy/vstool.git@e44fc3aa116e22e8c2d673eba8870cb38e8ff5f2'
 ]
 [tool.flit.module]
 name = 'MolIO'
