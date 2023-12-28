@@ -6,15 +6,15 @@ A simple module for convenient molecule I/O
 """
 
 import os
-import sys
 import gzip
 import random
+import tempfile
 from pathlib import Path
 
 import cmder
-from loguru import logger
+import vstool
 
-logger.add(sys.stdout, colorize=True, format='<level>[{time:YYYY-MM-DD HH:mm:ss}] {message}</level>', level='INFO')
+logger = vstool.setup_logger()
 
 
 class SDF:
@@ -65,7 +65,9 @@ class SDF:
 
         if output:
             if s:
-                with open(output, 'w') as o:
+                output = Path(output)
+                opener = gzip.open if output.name.endswith('.gz') else open
+                with opener(output, 'wt') as o:
                     o.write(s)
                 return output
             else:
@@ -188,9 +190,10 @@ def write(records, output=''):
     records = (record.sdf() for record in records)
     s = ''.join(record for record in records if record)
     if output:
-        with open(output, 'w') as o:
+        output = Path(output)
+        opener = gzip.open if output.name.endswith('.gz') else open
+        with opener(output, 'wt') as o:
             o.write(s)
-        return output
     else:
         return s
 
@@ -355,4 +358,4 @@ def dlg2sdf(dlg, sdf=None, title=''):
 
 
 if __name__ == '__main__':
-    sample_sdf('Enamine_00_part00.sdf_1.sdfgz', 'part00.1000.sdf', n=3000)
+    pass
