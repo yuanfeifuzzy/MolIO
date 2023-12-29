@@ -324,7 +324,6 @@ def merge_sdf(sdfs, output, sort=None, max_score=0):
         logger.debug(f'Sorting {n:,} docking poses on docking score {sort} complete.')
 
     write(items, output)
-    logger.debug(f'Successfully saved {n:,} docking poses to {output}')
     return output
 
 
