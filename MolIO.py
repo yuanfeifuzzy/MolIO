@@ -17,6 +17,10 @@ import vstool
 logger = vstool.setup_logger()
 
 
+def _opener(path):
+    return gzip.open if str(path).endswith('.gz') else open
+
+
 class SDF:
     def __init__(self, s):
         self.s = s
@@ -65,13 +69,12 @@ class SDF:
 
         if output:
             if s:
-                output = Path(output)
-                opener = gzip.open if output.name.endswith('.gz') else open
+                output, opener = Path(output), _opener(output)
                 with opener(output, 'wt') as o:
                     o.write(s)
                 return output
             else:
-                return ''
+                return None
         else:
             return s
 
@@ -178,7 +181,7 @@ def parse_dlg(dlg):
 
 
 def parse(path):
-    if path.endswith('.sdf.gz') or path.endswith('.sdf'):
+    if path.endswith('.sdf.gz') or path.endswith('.sdfgz') or path.endswith('.sdf'):
         return parse_sdf(path)
     elif path.endswith('.dlg.gz') or path.endswith('.dlg'):
         return parse_dlg(path)
@@ -186,16 +189,26 @@ def parse(path):
         raise TypeError(f'Unsupported file {path}')
 
 
-def write(records, output=''):
-    records = (record.sdf() for record in records)
-    s = ''.join(record for record in records if record)
+def write(records, output=None, outdir=None):
     if output:
-        output = Path(output)
-        opener = gzip.open if output.name.endswith('.gz') else open
+        opener = _opener(output)
         with opener(output, 'wt') as o:
-            o.write(s)
+            n = 0
+            for record in records:
+                if record:
+                    o.write(record.sdf())
+                    n += 1
+            logger.debug(f'Successfully saved {n:,} items into {output}')
+        return Path(output)
+    elif outdir:
+        outdir, outputs = Path(outdir), []
+        outdir.mkdir(parents=True, exist_ok=True)
+        for i, record in enumerate(records):
+            if record:
+                outputs.append(record.sdf(output=f'{outdir}/{record.title or i}.sdf'))
+        logger.debug(f'Successfully saved {len(outputs):,} items into {outdir}')
     else:
-        return s
+        return ''.join(record for record in records if record)
 
 
 def count_sdf(sdf):
@@ -296,18 +309,19 @@ def sample_sdf(sdf, output, n=0, p=0.0, seed=None):
     #     o.writelines(s.sdf() for s in ss if s.mol)
 
 
-def merge_sdf(sdfs, output):
+def merge_sdf(sdfs, output, sort=None, max_score=0):
     items = []
     for sdf in sdfs:
         logger.debug(f'Parsing {sdf} ...')
         for s in parse_sdf(sdf):
-            if s.score is not None and s.score < 0:
+            if s.score is not None and s.score < max_score:
                 items.append(s)
 
     n = len(items)
-    logger.debug(f'Sorting {n:,} docking poses on docking score ...')
-    items = sorted(items, key=lambda x: x.score)
-    logger.debug(f'Sorting {n:,} docking poses on docking score complete.')
+    if sort:
+        logger.debug(f'Sorting {n:,} docking poses on docking score {sort} ...')
+        items = sorted(items, key=lambda x: x.score, reverse=False if sort == 'descending' else True)
+        logger.debug(f'Sorting {n:,} docking poses on docking score {sort} complete.')
 
     write(items, output)
     logger.debug(f'Successfully saved {n:,} docking poses to {output}')
